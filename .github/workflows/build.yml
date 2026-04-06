@@ -46,7 +46,7 @@ jobs:
           apk add --no-cache python3 pkgconf gcc musl-dev git \
             curl-dev curl-static libevent-dev libevent-static \
             openssl-dev openssl-libs-static nghttp2-dev nghttp2-static \
-            zlib-dev zlib-static brotli-dev brotli-static c-ares-dev c-ares-static \
+            zlib-dev zlib-static brotli-dev brotli-static c-ares-dev \
             libidn2-dev libidn2-static libunistring-dev libunistring-static
 
       - name: Mark git directory safe
@@ -104,18 +104,27 @@ jobs:
           install: >-
             git
             base-devel
-            mingw-w64-ucrt-x86_64-gcc
+            mingw-w64-ucrt-x86_64-toolchain
             mingw-w64-ucrt-x86_64-pkg-config
             mingw-w64-ucrt-x86_64-curl
             mingw-w64-ucrt-x86_64-libevent
+            mingw-w64-ucrt-x86_64-pthreads
             python3
 
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
+      - name: Check libevent pkg-config
+        run: |
+          pkg-config --list-all | grep -i event || true
+          ls /ucrt64/lib/pkgconfig/ | grep -i event || true
+
       - name: Configure
-        run: python3 waf configure --disable-man --no-werror
+        run: |
+          python3 waf configure --disable-man --no-werror \
+            --libevent-pthreads-cflags "$(pkg-config --cflags libevent libevent_pthreads 2>/dev/null || pkg-config --cflags libevent)" \
+            --libevent-pthreads-libs "$(pkg-config --libs libevent libevent_pthreads 2>/dev/null || pkg-config --libs libevent) -lpthread"
 
       - name: Build
         run: python3 waf build
