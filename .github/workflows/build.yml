@@ -58,10 +58,12 @@ jobs:
         run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
 
       - name: Configure
-        run: python3 waf configure --disable-man --no-werror --enable-static
+        run: |
+          export LINKFLAGS_SAL="-static"
+          python3 waf configure --disable-man --no-werror --enable-static --enable-link-optimizations
 
       - name: Build
-        run: LDFLAGS="-static" python3 waf build -v
+        run: python3 waf build
 
       - name: Verify static binary
         run: file build/saldl
