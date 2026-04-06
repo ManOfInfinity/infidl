@@ -54,7 +54,8 @@ jobs:
             curl-dev curl-static libevent-dev libevent-static \
             openssl-dev openssl-libs-static nghttp2-dev nghttp2-static \
             zlib-dev zlib-static brotli-dev brotli-static c-ares-dev \
-            libidn2-dev libidn2-static libunistring-dev libunistring-static
+            libidn2-dev libidn2-static libunistring-dev libunistring-static \
+            nghttp3-dev libgcc
 
       - name: Mark git directory safe
         run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
@@ -124,7 +125,6 @@ jobs:
             mingw-w64-ucrt-x86_64-pkg-config
             mingw-w64-ucrt-x86_64-curl
             mingw-w64-ucrt-x86_64-libevent
-            mingw-w64-ucrt-x86_64-pthreads
             python3
 
       - uses: actions/checkout@v4
