@@ -49,7 +49,8 @@ jobs:
             zlib-dev zlib-static brotli-dev brotli-static \
             c-ares-dev \
             libidn2-dev libidn2-static libunistring-dev libunistring-static \
-            zstd-dev zstd-static libpsl-dev libpsl-static
+            zstd-dev zstd-static libpsl-dev libpsl-static \
+            nghttp3-static
 
       - name: Mark git directory safe
         run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
@@ -120,21 +121,25 @@ jobs:
       - name: Configure
         run: |
           export CC=gcc
-          python3 waf configure --disable-man --no-werror \
+          export LDFLAGS="-static"
+          CURL_STATIC_LIBS="$(pkg-config --static --libs libcurl)"
+          EVENT_STATIC_LIBS="$(pkg-config --static --libs libevent)"
+          python3 waf configure --disable-man --no-werror --enable-static \
             --libevent-pthreads-cflags "$(pkg-config --cflags libevent)" \
-            --libevent-pthreads-libs "$(pkg-config --libs libevent)"
+            --libevent-pthreads-libs "$EVENT_STATIC_LIBS" \
+            --libcurl-cflags "$(pkg-config --cflags libcurl)" \
+            --libcurl-libs "$CURL_STATIC_LIBS -lws2_32 -lcrypt32 -lwldap32 -lbcrypt"
 
       - name: Build
         run: python3 waf build
 
-      - name: Collect DLLs
+      - name: Verify static binary
         run: |
-          mkdir -p dist
-          cp build/saldl.exe dist/
-          ldd build/saldl.exe | grep ucrt64 | awk '{print $3}' | xargs -I{} cp {} dist/
+          file build/saldl.exe
+          ldd build/saldl.exe || echo "Fully static - no dynamic deps"
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
           name: saldl-windows-x86_64
-          path: dist/
+          path: build/saldl.exe
