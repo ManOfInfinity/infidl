@@ -6,8 +6,6 @@ on:
   pull_request:
     branches: [master]
   workflow_dispatch:
-  schedule:
-    - cron: '0 0 1 * *'
 
 jobs:
   build-linux:
@@ -66,7 +64,7 @@ jobs:
         run: python3 waf build
 
       - name: Verify static binary
-        run: file build/saldl
+        run: ls -lh build/saldl
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
