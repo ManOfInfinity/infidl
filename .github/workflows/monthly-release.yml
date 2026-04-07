@@ -1,0 +1,231 @@
+name: Monthly Release
+
+on:
+  schedule:
+    - cron: '0 0 1 * *'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build-linux:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y python3 pkg-config gcc \
+            libcurl4-openssl-dev libevent-dev
+
+      - name: Configure
+        run: python3 waf configure --disable-man --no-werror
+
+      - name: Build
+        run: python3 waf build
+
+      - name: Package
+        run: |
+          mkdir -p release
+          cp build/saldl release/
+          tar -czf saldl-linux-x86_64.tar.gz -C release saldl
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: saldl-linux-x86_64
+          path: saldl-linux-x86_64.tar.gz
+
+  build-linux-static:
+    runs-on: ubuntu-latest
+    container: alpine:latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Install dependencies
+        run: |
+          apk add --no-cache python3 pkgconf gcc musl-dev git \
+            curl-dev curl-static libevent-dev libevent-static \
+            openssl-dev openssl-libs-static nghttp2-dev nghttp2-static \
+            zlib-dev zlib-static brotli-dev brotli-static \
+            c-ares-dev \
+            libidn2-dev libidn2-static libunistring-dev libunistring-static \
+            zstd-dev zstd-static libpsl-dev libpsl-static \
+            nghttp3-static
+
+      - name: Mark git directory safe
+        run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
+
+      - name: Configure
+        run: |
+          export LINKFLAGS_SAL="-static"
+          python3 waf configure --disable-man --no-werror --enable-static --enable-link-optimizations
+
+      - name: Build
+        run: python3 waf build
+
+      - name: Package
+        run: |
+          mkdir -p release
+          cp build/saldl release/
+          tar -czf saldl-linux-x86_64-static.tar.gz -C release saldl
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: saldl-linux-x86_64-static
+          path: saldl-linux-x86_64-static.tar.gz
+
+  build-macos:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Install dependencies
+        run: brew install pkg-config curl libevent
+
+      - name: Configure
+        run: |
+          export PKG_CONFIG_PATH="$(brew --prefix curl)/lib/pkgconfig:$(brew --prefix libevent)/lib/pkgconfig:$PKG_CONFIG_PATH"
+          python3 waf configure --disable-man --no-werror
+
+      - name: Build
+        run: python3 waf build
+
+      - name: Package
+        run: |
+          mkdir -p release
+          cp build/saldl release/
+          tar -czf saldl-macos-arm64.tar.gz -C release saldl
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: saldl-macos-arm64
+          path: saldl-macos-arm64.tar.gz
+
+  build-windows:
+    runs-on: windows-latest
+    defaults:
+      run:
+        shell: msys2 {0}
+    steps:
+      - uses: msys2/setup-msys2@v2
+        with:
+          msystem: UCRT64
+          update: true
+          install: >-
+            git
+            mingw-w64-ucrt-x86_64-gcc
+            mingw-w64-ucrt-x86_64-pkg-config
+            mingw-w64-ucrt-x86_64-curl
+            mingw-w64-ucrt-x86_64-libevent
+            python3
+
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Configure
+        run: |
+          export CC=gcc
+          python3 waf configure --disable-man --no-werror \
+            --libevent-pthreads-cflags "$(pkg-config --cflags libevent)" \
+            --libevent-pthreads-libs "$(pkg-config --libs libevent)"
+
+      - name: Build
+        run: python3 waf build
+
+      - name: Collect DLLs
+        run: |
+          mkdir -p dist
+          cp build/saldl.exe dist/
+          ldd build/saldl.exe | grep ucrt64 | awk '{print $3}' | xargs -I{} cp {} dist/
+
+      - name: Package
+        shell: pwsh
+        run: Compress-Archive -Path dist/* -DestinationPath saldl-windows-x86_64.zip
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: saldl-windows-x86_64
+          path: saldl-windows-x86_64.zip
+
+  release:
+    needs: [build-linux, build-linux-static, build-macos, build-windows]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Generate release notes
+        id: notes
+        run: |
+          TAG="nightly-$(date +%Y%m%d)"
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+
+          cat > notes.md << 'HEADER'
+          ## Monthly rebuild — fresh dependencies
+
+          Binaries rebuilt with latest security patches and dependency updates.
+
+          HEADER
+
+          echo "### Dependency versions" >> notes.md
+          echo '```' >> notes.md
+          echo "Build date: $(date -u +%Y-%m-%d)" >> notes.md
+          apt-get update -qq && apt-cache policy libcurl4-openssl-dev 2>/dev/null | grep Candidate | sed 's/^/libcurl: /' >> notes.md || true
+          apt-cache policy libssl-dev 2>/dev/null | grep Candidate | sed 's/^/openssl: /' >> notes.md || true
+          echo '```' >> notes.md
+
+          echo "" >> notes.md
+          echo "### Recent commits since last tag" >> notes.md
+          LAST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "")
+          if [ -n "$LAST_TAG" ]; then
+            git log "$LAST_TAG"..HEAD --oneline --no-decorate >> notes.md 2>/dev/null || echo "No new commits" >> notes.md
+          else
+            git log --oneline -10 --no-decorate >> notes.md
+          fi
+
+          echo "" >> notes.md
+          echo "### Artifacts" >> notes.md
+          echo "| File | Description |" >> notes.md
+          echo "|------|-------------|" >> notes.md
+          echo "| \`saldl-linux-x86_64.tar.gz\` | Linux dynamic (requires libcurl, libevent) |" >> notes.md
+          echo "| \`saldl-linux-x86_64-static.tar.gz\` | Linux static (zero dependencies) |" >> notes.md
+          echo "| \`saldl-macos-arm64.tar.gz\` | macOS ARM64 (requires libcurl, libevent) |" >> notes.md
+          echo "| \`saldl-windows-x86_64.zip\` | Windows x64 (exe + bundled DLLs) |" >> notes.md
+
+      - name: Delete existing nightly tag if present
+        run: |
+          TAG="${{ steps.notes.outputs.tag }}"
+          git tag -d "$TAG" 2>/dev/null || true
+          git push origin ":refs/tags/$TAG" 2>/dev/null || true
+
+      - name: Create release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.notes.outputs.tag }}
+          name: "Monthly Build — ${{ steps.notes.outputs.tag }}"
+          body_path: notes.md
+          prerelease: true
+          files: |
+            artifacts/saldl-linux-x86_64/saldl-linux-x86_64.tar.gz
+            artifacts/saldl-linux-x86_64-static/saldl-linux-x86_64-static.tar.gz
+            artifacts/saldl-macos-arm64/saldl-macos-arm64.tar.gz
+            artifacts/saldl-windows-x86_64/saldl-windows-x86_64.zip
