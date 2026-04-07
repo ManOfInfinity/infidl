@@ -127,6 +127,7 @@ jobs:
           ./configure --host=${HOST} --prefix=${PREFIX} \
             --disable-shared --enable-static \
             --disable-samples --disable-libevent-regress \
+            --disable-openssl \
             CFLAGS="-I${PREFIX}/include" LDFLAGS="-L${PREFIX}/lib"
           make -j$(nproc)
           make install
