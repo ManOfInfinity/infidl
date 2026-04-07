@@ -138,7 +138,9 @@ jobs:
           cd curl-8.12.1
           ./configure --host=${HOST} --prefix=${PREFIX} \
             --disable-shared --enable-static \
-            --without-ssl --with-schannel --with-zlib=${PREFIX} \
+            --with-schannel --with-zlib=${PREFIX} \
+            --without-openssl --without-gnutls --without-wolfssl \
+            --without-mbedtls --without-bearssl --without-rustls \
             --disable-ldap --disable-ldaps --disable-rtsp \
             --disable-dict --disable-telnet --disable-tftp \
             --disable-pop3 --disable-imap --disable-smb \
