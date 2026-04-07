@@ -1,8 +1,8 @@
 /*
     This file is a part of saldl.
 
-    Copyright (C) 2014-2016 Mohammad AlSaleh <CE.Mohammad.AlSaleh at gmail.com>
-    https://saldl.github.io
+    Copyright (C) 2026 ManOfInfinity <https://github.com/ManOfInfinity>
+    https://github.com/ManOfInfinity/saldl
 
     saldl is free software: you can redistribute it and/or modify
     it under the terms of the Affero GNU General Public License as
@@ -20,62 +20,92 @@
 #include "events.h"
 #include "utime.h"
 
-#define DEF_STATUS_LINES 8
+#define DEF_STATUS_LINES 2
+#define BAR_FILL_CHAR "\xe2\x96\x88"   /* U+2588 FULL BLOCK █ */
+#define BAR_EMPTY_CHAR "\xe2\x96\x91"  /* U+2591 LIGHT SHADE ░ */
 
 size_t num_of_lines(info_s *info_ptr, int cols) {
-  size_t lines = 0;
-
-  SALDL_ASSERT(info_ptr);
-
-  if (cols) {
-    lines = DEF_STATUS_LINES;
-    lines += !!info_ptr->global_progress.initial_complete_size; // Session
-    lines += info_ptr->chunk_count / cols + !!(info_ptr->chunk_count % cols); // chunks
-  }
-
-  return lines;
+  (void)info_ptr;
+  (void)cols;
+  return DEF_STATUS_LINES;
 }
 
-static inline void colorset(char *ptr, enum CHUNK_PROGRESS val, bool set_invert, size_t size) {
-  while (size) {
-    if (set_invert) {
-      memcpy(ptr,invert,strlen(invert));
-      ptr += strlen(invert);
-    }
-    else {
-      /* This works because strlen(invert) == strlen(bold) always */
-      memcpy(ptr,end,strlen(end));
-      ptr+= strlen(end);
-    }
-
-    switch (val) {
-      case PRG_NOT_STARTED:
-      case PRG_QUEUED:
-        memcpy(ptr,error_color,strlen(error_color));
-        ptr+= strlen(error_color);
-        break;
-      case PRG_STARTED:
-        memcpy(ptr,warn_color,strlen(warn_color));
-        ptr+= strlen(warn_color);
-        break;
-      case PRG_FINISHED:
-        memcpy(ptr,info_color,strlen(info_color));
-        ptr+= strlen(info_color);
-        break;
-      case PRG_MERGED:
-        memcpy(ptr,ok_color,strlen(ok_color));
-        ptr+= strlen(ok_color);
-        break;
-      case PRG_UNDEF:
-        fatal(FN, "This should never happen.");
-    }
-
-    memset(ptr, STATUS_CH_CHUNK_PROGRESS[val], 1);
-    ptr++;
-    memcpy(ptr,end,strlen(end));
-    ptr+= strlen(end);
-    size--;
+static void format_size(char *buf, size_t buflen, double size) {
+  if (size >= 1024.0*1024*1024) {
+    snprintf(buf, buflen, "%.2f GiB", size / (1024.0*1024*1024));
+  } else if (size >= 1024.0*1024) {
+    snprintf(buf, buflen, "%.2f MiB", size / (1024.0*1024));
+  } else if (size >= 1024.0) {
+    snprintf(buf, buflen, "%.2f KiB", size / 1024.0);
+  } else {
+    snprintf(buf, buflen, "%.0f B", size);
   }
+}
+
+static void format_time(char *buf, size_t buflen, double seconds) {
+  if (seconds >= 3600) {
+    snprintf(buf, buflen, "%dh%02dm%02ds", (int)(seconds/3600), (int)((int)seconds%3600)/60, (int)seconds%60);
+  } else if (seconds >= 60) {
+    snprintf(buf, buflen, "%dm%02ds", (int)(seconds/60), (int)seconds%60);
+  } else {
+    snprintf(buf, buflen, "%.0fs", seconds);
+  }
+}
+
+static void render_progress_bar(info_s *info_ptr, progress_s *p) {
+  int cols = tty_width();
+  if (cols <= 0) cols = 80;
+
+  double pct = 0;
+  if (info_ptr->file_size > 0) {
+    pct = (double)p->complete_size * 100.0 / (double)info_ptr->file_size;
+    if (pct > 100.0) pct = 100.0;
+  }
+
+  char size_done[32], size_total[32], rate_buf[32], eta_buf[32];
+  format_size(size_done, sizeof(size_done), (double)p->complete_size);
+  format_size(size_total, sizeof(size_total), (double)info_ptr->file_size);
+  format_size(rate_buf, sizeof(rate_buf), p->curr_rate > 0 ? p->curr_rate : p->rate);
+  format_time(eta_buf, sizeof(eta_buf), p->curr_rem < (double)INT64_MAX ? p->curr_rem : p->rem);
+
+  /* Fixed bar width for consistent display */
+  int bar_width = 30;
+  if (cols > 120) bar_width = 40;
+  else if (cols < 60) bar_width = 15;
+
+  int filled = (int)(pct * bar_width / 100.0);
+  if (filled > bar_width) filled = bar_width;
+
+  /* Render bar */
+  fprintf(stderr, "\r%s [", erase_after);
+
+  if (filled > 0) {
+    fprintf(stderr, "%s", ok_color);
+    for (int i = 0; i < filled; i++) {
+      fprintf(stderr, BAR_FILL_CHAR);
+    }
+    fprintf(stderr, "%s", end);
+  }
+
+  for (int i = filled; i < bar_width; i++) {
+    fprintf(stderr, BAR_EMPTY_CHAR);
+  }
+
+  /* Stats with fixed-width fields so display doesn't jump */
+  if (p->complete_size == info_ptr->file_size) {
+    char dur_buf[32];
+    format_time(dur_buf, sizeof(dur_buf), p->dur);
+    fprintf(stderr, "] %5.1f%% | %10s / %10s | %10s/s | %s",
+        pct, size_done, size_total, rate_buf, dur_buf);
+  } else if (p->rate > 0 || p->curr_rate > 0) {
+    fprintf(stderr, "] %5.1f%% | %10s / %10s | %10s/s | ETA %8s",
+        pct, size_done, size_total, rate_buf, eta_buf);
+  } else {
+    fprintf(stderr, "] %5.1f%% | %10s / %10s",
+        pct, size_done, size_total);
+  }
+
+  fflush(stderr);
 }
 
 static void status_update_cb(evutil_socket_t fd, short what, void *arg) {
@@ -83,22 +113,17 @@ static void status_update_cb(evutil_socket_t fd, short what, void *arg) {
   saldl_params *params_ptr = info_ptr->params;
 
   progress_s *p = &(info_ptr->global_progress);
-  chunks_progress_s *chsp = &(p->chunks_progress);
   status_s *status_ptr = &info_ptr->status;
   event_s *ev_status = &info_ptr->ev_status;
 
   double params_refresh = params_ptr->status_refresh_interval;
   double refresh_interval = params_refresh ? params_refresh : SALDL_DEF_STATUS_REFRESH_INTERVAL;
 
-  size_t c_char_size = status_ptr->c_char_size;
-  char *chunks_status = status_ptr->chunks_status;
-
   /* Update number of lines in case tty width changes */
   int cols = tty_width() >= 0 ? tty_width() : 0;
   status_ptr->lines = num_of_lines(info_ptr, cols);
 
   debug_event_msg(FN, "callback no. %"SAL_JU" for triggered event %s, with what %d", ++ev_status->num_of_calls, str_EVENT_FD(fd) , what);
-
 
   /* We check if the merge loop is already de-initialized to not lose status of any merged chunks */
   if ( (info_ptr->session_status == SESSION_INTERRUPTED || !exist_prg(info_ptr, PRG_MERGED, false) ) && info_ptr->ev_merge.event_status < EVENT_INIT) {
@@ -115,10 +140,9 @@ static void status_update_cb(evutil_socket_t fd, short what, void *arg) {
     return;
   }
 
-  off_t session_complete_size = saldl_max_o(p->complete_size - p->initial_complete_size, 0); // Don't go -ve on reconnects
-  off_t session_size = info_ptr->file_size - p->initial_complete_size;
-  off_t rem_size =  info_ptr->file_size - p->complete_size;
-  
+  off_t session_complete_size = saldl_max_o(p->complete_size - p->initial_complete_size, 0);
+  off_t rem_size = info_ptr->file_size - p->complete_size;
+
   /* Calculate rates, remaining times */
   if (p->dur >= SALDL_STATUS_INITIAL_INTERVAL) {
     p->rate = session_complete_size/p->dur;
@@ -128,44 +152,14 @@ static void status_update_cb(evutil_socket_t fd, short what, void *arg) {
   if (p->curr_dur >= refresh_interval ||
       (p->dur  >= SALDL_STATUS_INITIAL_INTERVAL && p->dur < refresh_interval) ||
       p->complete_size == info_ptr->file_size) {
-    off_t curr_complete_size = saldl_max_o(p->complete_size - p->dlprev, 0); // Don't go -ve on reconnects
+    off_t curr_complete_size = saldl_max_o(p->complete_size - p->dlprev, 0);
     p->curr_rate = curr_complete_size/p->curr_dur;
     p->curr_rem = p->curr_rate ? rem_size/p->curr_rate : (double)INT64_MAX;
 
     p->prev = p->curr;
     p->dlprev = p->complete_size;
 
-    /* Set progress_status */
-    for (size_t counter = 0; counter < info_ptr->chunk_count; counter++) {
-      colorset(chunks_status+(counter*c_char_size), info_ptr->chunks[counter].progress, info_ptr->chunks[counter].from_mirror, 1);
-    }
-
-    main_msg("Chunk progress", " ");
-    status_msg("Merged", "          \t %"SAL_ZU" / %"SAL_ZU" (+%"SAL_ZU" finished)",
-        chsp->merged, info_ptr->chunk_count, chsp->finished);
-    status_msg("Started", "         \t %"SAL_ZU" / %"SAL_ZU" (%"SAL_ZU" empty)",
-        chsp->started, info_ptr->chunk_count, chsp->empty_started);
-    status_msg("Not started", "     \t %"SAL_ZU" / %"SAL_ZU" ((+%"SAL_ZU" queued)",
-        chsp->not_started, info_ptr->chunk_count, chsp->queued);
-    status_msg("Size complete", "   \t %.2f%s / %.2f%s (%.2f%c)",
-        human_size(p->complete_size), human_size_suffix(p->complete_size),
-        human_size(info_ptr->file_size), human_size_suffix(info_ptr->file_size),
-        PCT(p->complete_size, info_ptr->file_size), '%');
-    if (p->initial_complete_size) {
-      status_msg("Session complete", "\t %.2f%s / %.2f%s (%.2f%c)",
-          human_size(session_complete_size), human_size_suffix(session_complete_size),
-          human_size(session_size), human_size_suffix(session_size),
-          PCT(session_complete_size, session_size), '%');
-    }
-    status_msg("Rate", "            \t %.2f%s/s : %.2f%s/s",
-        human_size(p->rate), human_size_suffix(p->rate),
-        human_size(p->curr_rate), human_size_suffix(p->curr_rate));
-
-    status_msg("Remaining", "       \t %.1fs : %.1fs", p->rem, p->curr_rem);
-    status_msg("Duration", "        \t %.1fs", p->dur);
-
-    fprintf(stderr,"%s%s%s\n", erase_screen_after, chunks_status, ret_char);
-    saldl_fputs_count(status_ptr->lines, up, stderr, "stderr");
+    render_progress_bar(info_ptr, p);
   }
 }
 
@@ -179,14 +173,11 @@ void* status_display(void *void_info_ptr) {
   info_ptr->ev_status.event_status = EVENT_THREAD_STARTED;
 
   /* initialize status */
-  size_t c_char_size = status_ptr->c_char_size = strlen(ok_color) +strlen(end) + strlen(invert) + 1;
-  char *chunks_status = status_ptr->chunks_status = saldl_calloc(info_ptr->chunk_count*c_char_size + 1, sizeof(char)); /* Sometimes, an extra char is shown/read(valgrind) at the end without the extra bit, maybe due to lack of space for \0 */
+  status_ptr->c_char_size = 1;
+  status_ptr->chunks_status = saldl_calloc(1, sizeof(char));
 
   int cols = tty_width() >= 0 ? tty_width() : 0;
   status_ptr->lines = num_of_lines(info_ptr, cols);
-
-  /* initial chunks_status */
-  colorset(chunks_status, PRG_NOT_STARTED, false, info_ptr->chunk_count);
 
   /* event loop */
   events_init(&info_ptr->ev_status, status_update_cb, info_ptr, EVENT_STATUS);
@@ -203,10 +194,10 @@ void* status_display(void *void_info_ptr) {
 
   /* finalize and cleanup */
   if (!info_ptr->params->no_status) {
-    saldl_fputs_count(status_ptr->lines, "\n", stderr, "stderr");
+    fprintf(stderr, "\n");
   }
 
-  SALDL_FREE(chunks_status);
+  SALDL_FREE(status_ptr->chunks_status);
   return info_ptr;
 }
 

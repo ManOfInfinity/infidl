@@ -500,12 +500,12 @@ EXIT STATUS
 WWW
 ----
 
-https://saldl.github.io
+https://github.com/ManOfInfinity/saldl
 
 
 BUGS
 -----
-https://github.com/saldl/saldl/issues
+https://github.com/ManOfInfinity/saldl/issues
 
 AUTHOR
 ------

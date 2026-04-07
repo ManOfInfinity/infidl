@@ -1,8 +1,8 @@
 /*
     This file is a part of saldl.
 
-    Copyright (C) 2014-2016 Mohammad AlSaleh <CE.Mohammad.AlSaleh at gmail.com>
-    https://saldl.github.io
+    Copyright (C) 2026 ManOfInfinity <https://github.com/ManOfInfinity>
+    https://github.com/ManOfInfinity/saldl
 
     saldl is free software: you can redistribute it and/or modify
     it under the terms of the Affero GNU General Public License as
@@ -567,6 +567,8 @@ static void print_info(info_s *info_ptr) {
   saldl_params *params_ptr = info_ptr->params;
   remote_info_s *remote_info = &info_ptr->remote_info;
 
+  if (!params_ptr->show_details) return;
+
   if ( info_ptr->remote_info.effective_url &&
       saldl_strcmp(params_ptr->start_url, info_ptr->remote_info.effective_url) ) {
     main_msg("Redirected", "%s", info_ptr->remote_info.effective_url);
@@ -887,6 +889,7 @@ void set_info(info_s *info_ptr) {
 }
 
 void print_chunk_info(info_s *info_ptr) {
+  if (!info_ptr->params->show_details) return;
   if (info_ptr->file_size) { /* Avoid printing useless info if remote file size is reported 0 */
 
     size_t chunk_size = info_ptr->params->chunk_size;

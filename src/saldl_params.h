@@ -1,8 +1,8 @@
 /*
     This file is a part of saldl.
 
-    Copyright (C) 2014-2016 Mohammad AlSaleh <CE.Mohammad.AlSaleh at gmail.com>
-    https://saldl.github.io
+    Copyright (C) 2026 ManOfInfinity <https://github.com/ManOfInfinity>
+    https://github.com/ManOfInfinity/saldl
 
     saldl is free software: you can redistribute it and/or modify
     it under the terms of the Affero GNU General Public License as
@@ -26,6 +26,7 @@
 #include <stdbool.h>
 
 typedef struct {
+  bool print_help;
   bool print_version;
   bool dry_run;
   bool force_get_info;
@@ -37,6 +38,7 @@ typedef struct {
   bool libcurl_verbosity;
   double status_refresh_interval;
   bool no_status;
+  bool show_details;
   char* start_url;
   char* mirror_start_url;
   bool fatal_if_invalid_mirror;

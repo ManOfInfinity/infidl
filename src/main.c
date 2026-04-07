@@ -1,8 +1,8 @@
 /*
     This file is a part of saldl.
 
-    Copyright (C) 2014-2016 Mohammad AlSaleh <CE.Mohammad.AlSaleh at gmail.com>
-    https://saldl.github.io
+    Copyright (C) 2026 ManOfInfinity <https://github.com/ManOfInfinity>
+    https://github.com/ManOfInfinity/saldl
 
     saldl is free software: you can redistribute it and/or modify
     it under the terms of the Affero GNU General Public License as
@@ -18,6 +18,10 @@
 */
 
 #include <getopt.h>
+
+#ifdef _WIN32
+#include <windows.h>
+#endif
 
 #include "saldl.h"
 
@@ -42,11 +46,8 @@ static void print_libcurl_protocols(const char * const *protocols) {
 static int saldl_version() {
   curl_version_info_data *curl_info = curl_version_info(CURLVERSION_NOW);
   fprintf(stderr, "%s %s (%s)\n", SALDL_NAME, SALDL_VERSION, SALDL_WWW);
-#ifdef _WIN32
-  fprintf(stderr, "WARNING: Windows builds of %s are experimental.\n", SALDL_NAME);
-#endif
   fprintf(stderr, "\n");
-  fprintf(stderr, "Copyright (C) 2014-2016 Mohammad AlSaleh.\n");
+  fprintf(stderr, "Copyright (C) 2026 ManOfInfinity.\n");
   fprintf(stderr, "Free use of this software is granted under the terms of\n");
   fprintf(stderr, "the GNU Affero General Public License (AGPL).\n");
   fprintf(stderr, "\n");
@@ -56,13 +57,100 @@ static int saldl_version() {
   return 0;
 }
 
-static int usage(char *caller) {
+static int saldl_help(char *caller) {
   saldl_version();
-  fprintf(stderr, "\n");
-  fprintf(stderr, "Usage: %s [OPTIONS] URL\n", caller);
-  fprintf(stderr, "Detailed documentation is available in the manual.\n");
-  fprintf(stderr, "An online version of the manual is available at:\n");
-  fprintf(stderr, "https://saldl.github.io/saldl.1.html\n");
+  fprintf(stderr, "\nUsage: %s [OPTIONS] URL\n", caller);
+  fprintf(stderr, "\nGeneral Options:\n");
+  fprintf(stderr, "  -h, --help                      Print this help message and exit\n");
+  fprintf(stderr, "  -v, --version                   Print version information and exit\n");
+  fprintf(stderr, "  -V, --verbosity                 Increase verbosity (can be repeated)\n");
+  fprintf(stderr, "  -C, --no-color                  Disable colored output\n");
+  fprintf(stderr, "  -d, --dry-run                   Dry run, do not download\n");
+  fprintf(stderr, "      --show-details              Show URL, file size, chunk info\n");
+  fprintf(stderr, "\nDownload Options:\n");
+  fprintf(stderr, "  -c, --connections=NUM            Number of parallel connections [default: 6]\n");
+  fprintf(stderr, "  -s, --chunk-size=SIZE            Chunk size in bytes [default: 1MiB]\n");
+  fprintf(stderr, "  -a, --auto-size=NUM              Auto-adjust chunk size (NUM chunks/conn)\n");
+  fprintf(stderr, "  -w, --whole-file                 Set chunk size to file_size/connections\n");
+  fprintf(stderr, "  -R, --connection-max-rate=RATE   Max download rate per connection (bytes/s)\n");
+  fprintf(stderr, "  -S, --single                     Single connection mode\n");
+  fprintf(stderr, "  -r, --resume                     Resume incomplete download\n");
+  fprintf(stderr, "  -f, --force                      Force overwrite existing files\n");
+  fprintf(stderr, "  -m, --memory-buffers             Use memory instead of temp files\n");
+  fprintf(stderr, "  -F, --allow-ftp-segments         Allow segmented FTP downloads\n");
+  fprintf(stderr, "\nOutput Options:\n");
+  fprintf(stderr, "  -D, --root-dir=DIR               Output directory\n");
+  fprintf(stderr, "  -o, --output-filename=NAME       Output filename\n");
+  fprintf(stderr, "  -n, --no-path                    Strip path from filename\n");
+  fprintf(stderr, "  -G, --keep-GET-attrs             Keep GET query params in filename\n");
+  fprintf(stderr, "  -g, --filename-from-redirect     Use final redirect URL for filename\n");
+  fprintf(stderr, "  -t, --auto-trunc                 Auto-truncate long filenames\n");
+  fprintf(stderr, "  -T, --smart-trunc                Smart truncation (UTF-8 aware)\n");
+  fprintf(stderr, "      --stdout                     Write output to stdout\n");
+  fprintf(stderr, "      --merge-in-order             Merge chunks sequentially (for piping)\n");
+  fprintf(stderr, "      --random-order               Download chunks in random order\n");
+  fprintf(stderr, "\nNetwork Options:\n");
+  fprintf(stderr, "  -x, --proxy=URL                  HTTP/SOCKS proxy\n");
+  fprintf(stderr, "  -X, --tunnel-proxy=URL           HTTP CONNECT tunneling proxy\n");
+  fprintf(stderr, "  -N, --no-proxy                   Disable proxy\n");
+  fprintf(stderr, "  -4, --resolve-ipv4               Force IPv4 resolution\n");
+  fprintf(stderr, "  -6, --resolve-ipv6               Force IPv6 resolution\n");
+  fprintf(stderr, "  -u, --user-agent=STRING          Custom User-Agent\n");
+  fprintf(stderr, "  -U, --no-user-agent              Disable User-Agent header\n");
+  fprintf(stderr, "  -H, --custom-headers=HEADER      Add custom header (repeatable)\n");
+  fprintf(stderr, "      --proxy-custom-headers=HDR   Add custom proxy header (repeatable)\n");
+  fprintf(stderr, "      --no-http2                   Disable HTTP/2\n");
+  fprintf(stderr, "      --http2-upgrade              Try HTTP/2 upgrade over plain HTTP\n");
+  fprintf(stderr, "      --no-tcp-keep-alive          Disable TCP keep-alive\n");
+  fprintf(stderr, "\nTLS/SSL Options:\n");
+  fprintf(stderr, "      --skip-TLS-verification      Skip TLS certificate verification\n");
+  fprintf(stderr, "\nCookie & Auth Options:\n");
+  fprintf(stderr, "  -k, --inline-cookies=COOKIES     Inline cookies (semicolon-separated)\n");
+  fprintf(stderr, "  -K, --cookie-file=FILE           Cookie file path\n");
+  fprintf(stderr, "  -e, --referer=URL                Custom Referer header\n");
+  fprintf(stderr, "  -E, --auto-referer               Auto-set Referer from redirects\n");
+  fprintf(stderr, "  -p, --post=DATA                  POST form data\n");
+  fprintf(stderr, "  -P, --raw-post=DATA              Raw POST data\n");
+  fprintf(stderr, "\nConditional Options:\n");
+  fprintf(stderr, "  -M, --since-file-mtime=FILE      Download if modified since file's mtime\n");
+  fprintf(stderr, "  -Y, --date-cond=DATE             Date condition (\"-\" prefix = before)\n");
+  fprintf(stderr, "\nChunk Ordering:\n");
+  fprintf(stderr, "  -l, --last-chunks-first=NUM      Download last NUM chunks first\n");
+  fprintf(stderr, "  -L, --last-size-first=SIZE       Download last SIZE bytes first\n");
+  fprintf(stderr, "\nEncoding Options:\n");
+  fprintf(stderr, "  -z, --compress                   Request compression from server\n");
+  fprintf(stderr, "  -Z, --no-decompress              Skip automatic decompression\n");
+  fprintf(stderr, "\nMirror Options:\n");
+  fprintf(stderr, "      --mirror-url=URL             Mirror/fallback URL\n");
+  fprintf(stderr, "      --fatal-if-invalid-mirror    Fail if mirror is incompatible\n");
+  fprintf(stderr, "\nInfo Options:\n");
+  fprintf(stderr, "      --get-info=TYPE              Get info only: file-name|file-size|effective-url\n");
+  fprintf(stderr, "      --force-get-info             Force --get-info even if file exists\n");
+  fprintf(stderr, "  -I, --no-remote-info             Skip remote info queries\n");
+  fprintf(stderr, "  -A, --no-attachment-detection     Ignore Content-Disposition header\n");
+  fprintf(stderr, "      --assume-range-support       Assume server supports ranges\n");
+  fprintf(stderr, "      --use-HEAD                   Use HEAD method for info retrieval\n");
+  fprintf(stderr, "\nTimeout Options:\n");
+  fprintf(stderr, "  -O, --no-timeouts                Disable timeout checks\n");
+  fprintf(stderr, "      --timeout-low-speed=BYTES    Low speed limit (bytes/s) [default: 512]\n");
+  fprintf(stderr, "      --timeout-low-speed-period=S Low speed period (seconds) [default: 10]\n");
+  fprintf(stderr, "      --timeout-connection-period=S Connection timeout (seconds) [default: 10]\n");
+  fprintf(stderr, "\nDisplay Options:\n");
+  fprintf(stderr, "  -i, --status-refresh-interval=S  Status refresh interval [default: 0.3]\n");
+  fprintf(stderr, "      --no-status                  Suppress progress display\n");
+  fprintf(stderr, "      --no-mmap                    Don't use mmap for merging\n");
+  fprintf(stderr, "      --verbose-libcurl            Enable libcurl verbose output\n");
+  fprintf(stderr, "      --read-only                  Read-only mode (no download)\n");
+  fprintf(stderr, "\nEnvironment Variables:\n");
+  fprintf(stderr, "  SALDL_EXTRA_ARGS                 Extra arguments appended to command\n");
+  fprintf(stderr, "\nReport bugs: %s\n", SALDL_BUG);
+  return 0;
+}
+
+static int usage(char *caller) {
+  fprintf(stderr, "%s %s (%s)\n", SALDL_NAME, SALDL_VERSION, SALDL_WWW);
+  fprintf(stderr, "\nUsage: %s [OPTIONS] URL\n", caller);
+  fprintf(stderr, "Try '%s -h' for more information.\n", caller);
   return EXIT_FAILURE;
 }
 
@@ -86,6 +174,7 @@ int set_get_info(saldl_params *params, char *get_info) {
 static int parse_opts(saldl_params *params_ptr, int full_argc, char **full_argv) {
   int opt_idx = 0, c = 0;
   static struct option long_opts[] = {
+    {"help", no_argument, 0, 'h'},
     {"version" , no_argument, 0, 'v'},
     {"verbosity" , no_argument, 0, 'V'},
     {"no-color" , no_argument, 0, 'C'},
@@ -153,6 +242,7 @@ static int parse_opts(saldl_params *params_ptr, int full_argc, char **full_argv)
 #define SAL_OPT_TIMEOUT_LOW_SPEED         CHAR_MAX+19
 #define SAL_OPT_TIMEOUT_LOW_SPEED_PERIOD  CHAR_MAX+20
 #define SAL_OPT_TIMEOUT_CONNECTION_PERIOD CHAR_MAX+21
+#define SAL_OPT_SHOW_DETAILS             CHAR_MAX+22
     {"mirror-url", required_argument, 0, SAL_OPT_MIRROR_URL},
     {"fatal-if-invalid-mirror", no_argument, 0, SAL_OPT_FATAL_IF_INVALID_MIRROR},
     {"no-http2", no_argument, 0, SAL_OPT_NO_HTTP2},
@@ -174,10 +264,11 @@ static int parse_opts(saldl_params *params_ptr, int full_argc, char **full_argv)
     {"timeout-low-speed", required_argument, 0, SAL_OPT_TIMEOUT_LOW_SPEED},
     {"timeout-low-speed-period", required_argument, 0, SAL_OPT_TIMEOUT_LOW_SPEED_PERIOD},
     {"timeout-connection-period", required_argument, 0, SAL_OPT_TIMEOUT_CONNECTION_PERIOD},
+    {"show-details", no_argument, 0, SAL_OPT_SHOW_DETAILS},
     {0, 0, 0, 0}
   };
 
-  const char *opts = "s:l:L:c:R:x:X:N3OSH:IAnGgdD:o:tTrfa:wmVvCi:K:k:M:Y:p:P:e:Eu:U64ZzF";
+  const char *opts = "hs:l:L:c:R:x:X:N3OSH:IAnGgdD:o:tTrfa:wmVvCi:K:k:M:Y:p:P:e:Eu:U64ZzF";
   opt_idx = 0 , optind = 0;
   while (1) {
     c = getopt_long(full_argc, full_argv, opts, long_opts, &opt_idx);
@@ -213,6 +304,9 @@ static int parse_opts(saldl_params *params_ptr, int full_argc, char **full_argv)
     switch (c) {
       case 'C':
       case 'V':
+        break;
+      case 'h':
+        params_ptr->print_help = true;
         break;
       case 'v':
         params_ptr->print_version = true;
@@ -431,6 +525,10 @@ static int parse_opts(saldl_params *params_ptr, int full_argc, char **full_argv)
         params_ptr->timeout_connection_period = parse_num_z(optarg, 0);
         break;
 
+      case SAL_OPT_SHOW_DETAILS:
+        params_ptr->show_details = true;
+        break;
+
       default:
         return 1;
         break; /* keep it here in case we change this code in the future */
@@ -446,6 +544,19 @@ static int parse_opts(saldl_params *params_ptr, int full_argc, char **full_argv)
 }
 
 int main(int argc,char **argv) {
+#ifdef _WIN32
+  /* Enable VT100 escape codes on Windows 10+ for progress bar */
+  HANDLE hOut = GetStdHandle(STD_ERROR_HANDLE);
+  if (hOut != INVALID_HANDLE_VALUE) {
+    DWORD mode = 0;
+    if (GetConsoleMode(hOut, &mode)) {
+      SetConsoleMode(hOut, mode | 0x0004 /* ENABLE_VIRTUAL_TERMINAL_PROCESSING */);
+    }
+  }
+  /* Set console output to UTF-8 for progress bar characters */
+  SetConsoleOutputCP(65001);
+#endif
+
   /* Initialize params */
   saldl_params params = DEF_SALDL_PARAMS;
 
@@ -481,12 +592,17 @@ int main(int argc,char **argv) {
   SALDL_FREE(full_argv);
 
   if (ret_parse) {
-    /* We want --version to work, no matter what */
-    if (params.print_version) {
+    if (params.print_help) {
+      return saldl_help(argv[0]);
+    } else if (params.print_version) {
       return saldl_version();
     } else {
       return usage(argv[0]);
     }
+  }
+
+  if (params.print_help) {
+    return saldl_help(argv[0]);
   }
 
   if (params.print_version) {

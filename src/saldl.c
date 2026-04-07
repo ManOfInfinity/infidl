@@ -1,8 +1,8 @@
 /*
     This file is a part of saldl.
 
-    Copyright (C) 2014-2016 Mohammad AlSaleh <CE.Mohammad.AlSaleh at gmail.com>
-    https://saldl.github.io
+    Copyright (C) 2026 ManOfInfinity <https://github.com/ManOfInfinity>
+    https://github.com/ManOfInfinity/saldl
 
     saldl is free software: you can redistribute it and/or modify
     it under the terms of the Affero GNU General Public License as
@@ -91,7 +91,7 @@ void saldl(saldl_params *params_ptr) {
 #endif
 
   /* get/set initial info */
-  main_msg("URL", "%s", params_ptr->start_url);
+  if (params_ptr->show_details) main_msg("URL", "%s", params_ptr->start_url);
   check_url(params_ptr->start_url);
   get_info(&info);
   set_info(&info);
@@ -208,7 +208,7 @@ saldl_all_data_merged:
       pre_fatal(FN, "Unexpected saved file size (%"SAL_JU"!=%"SAL_JU").", saved_file_size, info.file_size);
       pre_fatal(FN, "This could happen if you're downloading from a dynamic site.");
       pre_fatal(FN, "If that's the case and the download is small, retry with --no-remote-info");
-      fatal(FN, "If you think that's a bug in saldl, report it: https://github.com/saldl/saldl/issues");
+      fatal(FN, "If you think that's a bug in saldl, report it: %s", SALDL_BUG);
     }
   }
   else {

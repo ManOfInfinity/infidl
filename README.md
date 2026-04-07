@@ -1,121 +1,109 @@
-# ![saldl banner](https://raw.githubusercontent.com/saldl/misc/master/saldl_banner_alpha.png)
+# saldl 2.0
 
-A multi-platform command-line downloader optimized for speed and early
-preview, based on libcurl.
+A fast, multi-platform command-line downloader optimized for speed, based on libcurl.
 
-**saldl** splits a download into fixed-sized chunks and download
-them in-order with multiple concurrent connections. Classic modes
-(single chunk single connection, no. of chunks = no. of connections)
-are also available as *options*.
+**saldl** splits a download into fixed-sized chunks and downloads them in-order with multiple concurrent connections. It natively supports HTTPS proxies, HTTP/2, resume, and parallel chunked downloads.
 
-More than 57 command-line options are available to customize saldl's behavior.
-
-## Documentation
-
-Detailed documentation is available in the form of
-a [manual page](https://saldl.github.io/saldl.1.html).
-
-## Contact
-
-[Users Chat & Questions](https://github.com/saldl/saldl/issues/4)
-
-## FlashGot integration
-
- Check out the `README` and the scripts in the [flashgot](flashgot/)
- directory.
-
-## Screenshot
+## Demo
 
 ```
-   -s4m => set chunk_size to 4 MiB.
-   -c4  => use 4 concurrent connections.
-   -l4  => download the last 4 chunks first.
+$ saldl -c8 --auto-size 1 "https://example.com/ubuntu-24.04-desktop-amd64.iso"
+ [████████████████████░░░░░░░░░░]  67.4% |   4.12 GiB /   6.11 GiB |  85.30 MiB/s | ETA      24s
 ```
 
-![saldl screenshot](https://raw.githubusercontent.com/saldl/misc/master/saldl.png)
+```
+$ saldl -c16 --auto-size 1 --show-details "https://cdn.example.com/movie.mkv"
+URL: https://cdn.example.com/movie.mkv
+Content-Type: application/octet-stream
+Saving To: movie.mkv
+File Size: 17.21GiB
+Chunks: 16*1.07GiB + 1*1.06GiB
+ [██████████████████████████████] 100.0% |  17.21 GiB /  17.21 GiB | 152.45 MiB/s | 1m55s
+Download Finished.
+```
 
-## Dependencies
+## Features
 
- * **Runtime Dependencies**
+- Multi-connection parallel downloads with configurable chunk sizes
+- HTTP/HTTPS/SOCKS proxy support (including HTTPS CONNECT tunneling)
+- Resume interrupted downloads
+- HTTP/2 support with automatic fallback
+- Mirror/fallback URL support
+- Modern progress bar with real-time speed and ETA
+- Cross-platform: Linux, macOS, Windows
 
-  * [libcurl](https://github.com/bagder/curl) >= 7.55
-  * [libevent + libevent_pthreads](https://github.com/libevent/libevent) >= 2.0.20
+## Quick Start
 
- * **Build Dependencies**
+```bash
+# Basic download with 8 connections
+saldl -c8 "https://example.com/file.bin"
 
-  * GCC or Clang
-  * python (for waf)
+# Download with auto chunk sizing
+saldl -c16 --auto-size 1 "https://example.com/large.bin"
 
- * **Optional Build Dependencies**
+# Resume an interrupted download
+saldl -c8 --resume "https://example.com/large.bin"
 
-  * git (to get the current version).
-  * asciidoc (to build the manual).
+# Download through a proxy
+saldl -c8 --proxy socks5://127.0.0.1:1080 "https://example.com/file.bin"
 
-  **Note**: `docbook-xsl` should be installed too if it's not already
-            a dependency of `asciidoc`. While this is theoritically not
-            necessary, falling back to getting XSL stylesheets directly
-            from SourceForge seems to be unreliable nowadays.
+# HTTPS tunnel proxy
+saldl -c8 --tunnel-proxy https://proxy:8080 "https://example.com/file.bin"
 
-## Build
+# Save to specific directory and filename
+saldl -c8 -D /downloads -o myfile.bin "https://example.com/file.bin"
 
-  **saldl** has been tested on GNU/Linux, NetBSD, FreeBSD, OpenBSD, Mac OSX, and Windows.
+# Show detailed info (URL, content-type, file size, chunks)
+saldl -c8 --show-details "https://example.com/file.bin"
+```
 
-  **saldl** should build and run successfully on all POSIX platforms.
-  If anyone runs into any build failures, reporting them would be highly
-  appreciated.
+Run `saldl -h` for all available options.
 
-### POSIX
+## Installation
 
- * **General**
+### Pre-built Binaries
 
-  Run `./waf --help` first and check out the available options.
+Download from the [releases](https://github.com/ManOfInfinity/saldl/releases) page:
 
-  A typical example would be:
+| Platform | File | Notes |
+|----------|------|-------|
+| Linux (static) | `saldl-linux-x86_64-static.tar.gz` | Zero dependencies, runs anywhere |
+| Linux (dynamic) | `saldl-linux-x86_64.tar.gz` | Requires libcurl, libevent |
+| macOS (ARM64) | `saldl-macos-arm64.tar.gz` | Requires libcurl, libevent (`brew install curl libevent`) |
+| Windows (x64) | `saldl-windows-x86_64.zip` | Includes all required DLLs and CA certs |
 
-  ```
-  ./waf configure --prefix=/usr
+### Build from Source
 
-  ./waf
+#### Dependencies
 
-  ./waf install --destdir=${pkgdir}
-  ```
+- **Runtime**: [libcurl](https://curl.se/libcurl/) >= 7.55, [libevent](https://libevent.org/) >= 2.0.20
+- **Build**: GCC or Clang, Python 3 (for waf build system)
+- **Optional**: git (version info), asciidoc + docbook-xsl (man page)
 
- * **Arch Linux**
+#### Build
 
-  **saldl** is available in the [AUR](https://aur.archlinux.org/packages/saldl-git).
+```bash
+./waf configure --prefix=/usr
+./waf build
+./waf install
+```
 
- * **Mac OSX**
+To build without the man page:
 
-  **saldl** can be installed with [Homebrew](http://brew.sh).
+```bash
+./waf configure --disable-man
+./waf build
+```
 
-  For the latest release, run:
+## Credits
 
-      brew install saldl
+Originally created by [Mohammad AlSaleh](https://github.com/saldl/saldl) (2014-2016).
+Now maintained by [ManOfInfinity](https://github.com/ManOfInfinity).
 
-  For the latest GIT head, run:
+## License
 
-      brew install --HEAD saldl
+[GNU Affero General Public License (AGPL)](https://www.gnu.org/licenses/agpl-3.0.html)
 
-  **Note**: saldl will be linked against system `libcurl` if the Mac OSX
-            version installed is Yosemite (10.10) or newer. Pass `--with-curl`
-            if you want to link against the latest `libcurl` release provided
-            by Homebrew.
+## Issues
 
-### Windows
-
- * **MSYS2/Cygwin**
-
-  A [PKGBUILD](MSYS2/PKGBUILD) for MSYS2.
-
-  **Note**: Building against the MSYS2 runtime (or Cygwin's) is
-            necessary for **saldl** to work correctly in
-            [mintty](https://github.com/mintty/mintty).
-
- * **MinGW-w64/Native**
-
-  Experimental binaries are now available in
-  the [releases](https://github.com/saldl/saldl/releases) page.
-
-  **saldl** requires a terminal emulator with support for ANSI/VT100
-  escape sequences (e.g. [ConEmu](https://github.com/Maximus5/ConEmu)
-  or [ansicon](https://github.com/adoxa/ansicon)).
+Report bugs at [github.com/ManOfInfinity/saldl/issues](https://github.com/ManOfInfinity/saldl/issues)

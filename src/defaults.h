@@ -1,8 +1,8 @@
 /*
     This file is a part of saldl.
 
-    Copyright (C) 2014-2016 Mohammad AlSaleh <CE.Mohammad.AlSaleh at gmail.com>
-    https://saldl.github.io
+    Copyright (C) 2026 ManOfInfinity <https://github.com/ManOfInfinity>
+    https://github.com/ManOfInfinity/saldl
 
     saldl is free software: you can redistribute it and/or modify
     it under the terms of the Affero GNU General Public License as
@@ -25,12 +25,13 @@
 
 /* Project Info */
 #define SALDL_NAME "saldl"
-#define SALDL_WWW "https://saldl.github.io"
-#define SALDL_BUG "https://github.com/saldl/saldl/issues"
+#define SALDL_WWW "https://github.com/ManOfInfinity/saldl"
+#define SALDL_BUG "https://github.com/ManOfInfinity/saldl/issues"
 
-/* Version is defined by the build system, set to unknown if it wasn't. */
+/* Version is defined by the build system via git describe.
+ * Falls back to this default if git is not available. */
 #ifndef SALDL_VERSION
-#define SALDL_VERSION "(unknown version)"
+#define SALDL_VERSION "2.0"
 #endif
 
 /* Default Params */
