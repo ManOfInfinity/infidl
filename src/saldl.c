@@ -231,7 +231,10 @@ saldl_all_data_merged:
   curl_cleanup(&info);
   saldl_free_all(&info);
 
-  finish_msg_and_exit("Download Finished.");
+  if (params_ptr->show_details) {
+    finish_msg_and_exit("Download Finished.");
+  }
+  exit(EXIT_SUCCESS);
 }
 
 /* vim: set filetype=c ts=2 sw=2 et spell foldmethod=syntax: */

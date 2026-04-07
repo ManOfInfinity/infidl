@@ -1010,7 +1010,6 @@ static int status_single_display(void *void_info_ptr, curl_off_t dltotal, curl_o
 
     if (p->initialized == 1) {
       p->initialized++;
-      saldl_fputs_count(lines+1, "\n", stderr, "stderr"); // +1 in case offset becomes non-zero
     }
 
     p->curr = saldl_utime();
@@ -1037,26 +1036,52 @@ static int status_single_display(void *void_info_ptr, curl_off_t dltotal, curl_o
         p->rem = p->rate && dltotal ? (dltotal - dlnow) / p->rate : (double)INT64_MAX;
       }
 
-      saldl_fputs_count(lines+!!offset, up, stderr, "stderr");
-      main_msg("Single mode progress", " ");
+      {
+        /* Modern progress bar for single mode */
+        double complete = (double)(dlnow + offset);
+        double total = (double)info_ptr->file_size;
+        double pct = total > 0 ? complete * 100.0 / total : 0;
+        if (pct > 100.0) pct = 100.0;
 
-      status_msg("Progress", " \t%.2f%s / %.2f%s",
-          human_size(dlnow + offset), human_size_suffix(dlnow + offset),
-          human_size(info_ptr->file_size), human_size_suffix(info_ptr->file_size));
+        int bar_width = 30;
+        int filled = (int)(pct * bar_width / 100.0);
+        if (filled > bar_width) filled = bar_width;
 
-      if (offset) {
-        status_msg(NULL, "        \t%.2f%s / %.2f%s (Offset: %.2f%s)",
-            human_size(dlnow), human_size_suffix(dlnow),
-            human_size(dltotal), human_size_suffix(dltotal),
-            human_size(offset), human_size_suffix(offset));
+        char size_done[32], size_total[32], rate_buf[32];
+        snprintf(size_done, sizeof(size_done), "%.2f%s",
+            human_size(complete), human_size_suffix(complete));
+        snprintf(size_total, sizeof(size_total), "%.2f%s",
+            human_size(total), human_size_suffix(total));
+
+        double display_rate = p->curr_rate > 0 ? p->curr_rate : p->rate;
+        snprintf(rate_buf, sizeof(rate_buf), "%.2f%s",
+            human_size(display_rate), human_size_suffix(display_rate));
+
+        fprintf(stderr, "\r%s [", erase_after);
+        if (filled > 0) {
+          fprintf(stderr, "%s", ok_color);
+          for (int i = 0; i < filled; i++) fprintf(stderr, "\xe2\x96\x88");
+          fprintf(stderr, "%s", end);
+        }
+        for (int i = filled; i < bar_width; i++) fprintf(stderr, "\xe2\x96\x91");
+
+        if (dlnow + offset >= info_ptr->file_size && info_ptr->file_size > 0) {
+          fprintf(stderr, "] %5.1f%% | %10s / %10s | %10s/s | %.0fs",
+              pct, size_done, size_total, rate_buf, p->dur);
+        } else if (display_rate > 0) {
+          double eta = p->curr_rem < (double)INT64_MAX ? p->curr_rem : p->rem;
+          char eta_buf[32];
+          if (eta >= 3600) snprintf(eta_buf, sizeof(eta_buf), "%dh%02dm%02ds", (int)(eta/3600), ((int)eta%3600)/60, (int)eta%60);
+          else if (eta >= 60) snprintf(eta_buf, sizeof(eta_buf), "%dm%02ds", (int)(eta/60), (int)eta%60);
+          else snprintf(eta_buf, sizeof(eta_buf), "%.0fs", eta);
+          fprintf(stderr, "] %5.1f%% | %10s / %10s | %10s/s | ETA %8s",
+              pct, size_done, size_total, rate_buf, eta_buf);
+        } else {
+          fprintf(stderr, "] %5.1f%% | %10s / %10s",
+              pct, size_done, size_total);
+        }
+        fflush(stderr);
       }
-
-      status_msg("Rate", "     \t%.2f%s/s : %.2f%s/s",
-          human_size(p->rate), human_size_suffix(p->rate),
-          human_size(p->curr_rate), human_size_suffix(p->curr_rate));
-
-      status_msg("Remaining", "\t%.1fs : %.1fs", p->rem, p->curr_rem);
-      status_msg("Duration", " \t%.1fs", p->dur);
     }
   }
   return 0;
@@ -1119,16 +1144,18 @@ void set_params(thread_s *thread, info_s *info_ptr, char *url) {
   curl_easy_setopt(thread->ehandle, CURLOPT_ERRORBUFFER, thread->err_buf);
 
 #if !defined(__CYGWIN__) && !defined(__MSYS__) && defined(HAVE_GETMODULEFILENAME)
-  /* Set CA bundle if the file exists */
+  /* Set CA bundle relative to exe: <exe_dir>/etc/ssl/certs/ca-bundle.crt */
   char ca_bundle_path[PATH_MAX];
   char *exe_dir = windows_exe_path();
   if (exe_dir) {
-    saldl_snprintf(false, ca_bundle_path, PATH_MAX, "%s/ca-bundle.trust.crt", exe_dir);
+    saldl_snprintf(false, ca_bundle_path, PATH_MAX, "%s\\etc\\ssl\\certs\\ca-bundle.crt", exe_dir);
 
     if ( access(ca_bundle_path, F_OK) ) {
-      warn_msg(FN, "CA bundle file %s does not exist.", ca_bundle_path);
+      /* Fallback: check for ca-bundle.crt next to the exe */
+      saldl_snprintf(false, ca_bundle_path, PATH_MAX, "%s\\ca-bundle.crt", exe_dir);
     }
-    else {
+
+    if ( !access(ca_bundle_path, F_OK) ) {
       curl_easy_setopt(thread->ehandle, CURLOPT_CAINFO, ca_bundle_path);
     }
 
