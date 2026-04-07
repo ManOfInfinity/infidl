@@ -1144,22 +1144,39 @@ void set_params(thread_s *thread, info_s *info_ptr, char *url) {
   curl_easy_setopt(thread->ehandle, CURLOPT_ERRORBUFFER, thread->err_buf);
 
 #if !defined(__CYGWIN__) && !defined(__MSYS__) && defined(HAVE_GETMODULEFILENAME)
-  /* Set CA bundle relative to exe: <exe_dir>/etc/ssl/certs/ca-bundle.crt */
-  char ca_bundle_path[PATH_MAX];
-  char *exe_dir = windows_exe_path();
-  if (exe_dir) {
-    saldl_snprintf(false, ca_bundle_path, PATH_MAX, "%s\\etc\\ssl\\certs\\ca-bundle.crt", exe_dir);
-
-    if ( access(ca_bundle_path, F_OK) ) {
-      /* Fallback: check for ca-bundle.crt next to the exe */
-      saldl_snprintf(false, ca_bundle_path, PATH_MAX, "%s\\ca-bundle.crt", exe_dir);
+  /* Set CA bundle relative to exe. Static so the pointer stays valid
+   * for curl (CURLOPT_CAINFO stores the pointer, not a copy). */
+  {
+    static char ca_bundle_path[PATH_MAX];
+    static int ca_checked = 0;
+    if (!ca_checked) {
+      ca_checked = 1;
+      ca_bundle_path[0] = '\0';
+      char *exe_dir = windows_exe_path();
+      if (exe_dir) {
+        char try_path[PATH_MAX];
+        FILE *f;
+        /* Try etc/ssl/certs/ca-bundle.crt relative to exe */
+        saldl_snprintf(false, try_path, PATH_MAX, "%s\\etc\\ssl\\certs\\ca-bundle.crt", exe_dir);
+        f = fopen(try_path, "r");
+        if (f) {
+          fclose(f);
+          memcpy(ca_bundle_path, try_path, strlen(try_path) + 1);
+        } else {
+          /* Fallback: ca-bundle.crt next to exe */
+          saldl_snprintf(false, try_path, PATH_MAX, "%s\\ca-bundle.crt", exe_dir);
+          f = fopen(try_path, "r");
+          if (f) {
+            fclose(f);
+            memcpy(ca_bundle_path, try_path, strlen(try_path) + 1);
+          }
+        }
+        SALDL_FREE(exe_dir);
+      }
     }
-
-    if ( !access(ca_bundle_path, F_OK) ) {
+    if (ca_bundle_path[0]) {
       curl_easy_setopt(thread->ehandle, CURLOPT_CAINFO, ca_bundle_path);
     }
-
-    SALDL_FREE(exe_dir);
   }
 #endif
 
