@@ -24,6 +24,7 @@
 #include <sys/stat.h>
 
 #ifdef _WIN32
+#include <winsock2.h>
 #include <windows.h>
 #include <direct.h>
 #define SEG_MKDIR(path) _mkdir(path)

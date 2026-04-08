@@ -23,6 +23,7 @@
 #include <errno.h>
 
 #ifdef _WIN32
+#include <winsock2.h>
 #include <windows.h>
 #else
 #include <pthread.h>
@@ -31,6 +32,22 @@
 
 #include "m3u8.h"
 #include "log.h"
+
+/* strndup is not available on MinGW/Windows */
+#ifndef HAVE_STRNDUP
+#ifdef _WIN32
+static char *infidl_strndup(const char *s, size_t n) {
+  size_t len = strlen(s);
+  if (n < len) len = n;
+  char *result = malloc(len + 1);
+  if (!result) return NULL;
+  memcpy(result, s, len);
+  result[len] = '\0';
+  return result;
+}
+#define strndup infidl_strndup
+#endif
+#endif
 
 /* ========================================================================= */
 /*  AES-128-CBC (self-contained, no OpenSSL dependency)                      */
