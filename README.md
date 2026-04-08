@@ -18,7 +18,7 @@ A fast, multi-platform command-line downloader optimized for speed, based on lib
 
 ```
 $ infidl -c8 --auto-size 1 "https://example.com/ubuntu-24.04-desktop-amd64.iso"
- [████████████████████░░░░░░░░░░]  67.4% |   4.12 GiB /   6.11 GiB |  85.30 MiB/s | ETA      24s
+ [■■■■■■■■■■■■■■■■■■■■□□□□□□□□□□]  67.4% |   4.12 GiB /   6.11 GiB |  85.30 MiB/s | ETA      24s
 ```
 
 ```
@@ -28,7 +28,7 @@ Content-Type: application/octet-stream
 Saving To: movie.mkv
 File Size: 17.21GiB
 Chunks: 16*1.07GiB + 1*1.06GiB
- [██████████████████████████████] 100.0% |  17.21 GiB /  17.21 GiB | 152.45 MiB/s | 1m55s
+ [■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■] 100.0% |  17.21 GiB /  17.21 GiB | 152.45 MiB/s | 1m55s
 Download Finished.
 ```
 
@@ -80,7 +80,7 @@ Download from the [releases](https://github.com/ManOfInfinity/infidl/releases) p
 | Linux (static) | `infidl-linux-x86_64-static.tar.gz` | Zero dependencies, runs anywhere |
 | Linux (dynamic) | `infidl-linux-x86_64.tar.gz` | Requires libcurl, libevent |
 | macOS (ARM64) | `infidl-macos-arm64.tar.gz` | Requires libcurl, libevent (`brew install curl libevent`) |
-| Windows (x64) | `infidl-windows-x86_64.zip` | Includes all required DLLs and CA certs |
+| Windows (x64) | `infidl-windows-x86_64.zip` | Fully static, no dependencies |
 
 ### Build from Source
 
