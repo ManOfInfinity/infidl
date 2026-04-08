@@ -10,3 +10,5 @@ mingw*/*
 *.1
 .DS_Store
 .claude/
+TODO.md
+m3u8.py

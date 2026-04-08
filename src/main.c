@@ -24,6 +24,8 @@
 #endif
 
 #include "infidl.h"
+#include "m3u8.h"
+#include "segdl.h"
 
 #if !CURL_AT_LEAST_VERSION(7, 55, 0)
 #error "libcurl >= 7.55.0 required."
@@ -136,11 +138,14 @@ static int infidl_help(char *caller) {
   fprintf(stderr, "      --timeout-low-speed-period=S Low speed period (seconds) [default: 10]\n");
   fprintf(stderr, "      --timeout-connection-period=S Connection timeout (seconds) [default: 10]\n");
   fprintf(stderr, "\nDisplay Options:\n");
-  fprintf(stderr, "  -i, --status-refresh-interval=S  Status refresh interval [default: 0.3]\n");
+  fprintf(stderr, "      --status-refresh-interval=S  Status refresh interval [default: 0.3]\n");
   fprintf(stderr, "      --no-status                  Suppress progress display\n");
   fprintf(stderr, "      --no-mmap                    Don't use mmap for merging\n");
   fprintf(stderr, "      --verbose-libcurl            Enable libcurl verbose output\n");
   fprintf(stderr, "      --read-only                  Read-only mode (no download)\n");
+  fprintf(stderr, "\nSegmented Download Options:\n");
+  fprintf(stderr, "  -i, --input-file=FILE            Segment list file (aria2c format, '-' for stdin)\n");
+  fprintf(stderr, "      --m3u8                       Treat URL as M3U8 playlist\n");
   fprintf(stderr, "\nEnvironment Variables:\n");
   fprintf(stderr, "  INFIDL_EXTRA_ARGS                 Extra arguments appended to command\n");
   fprintf(stderr, "\nReport bugs: %s\n", INFIDL_BUG);
@@ -178,7 +183,7 @@ static int parse_opts(infidl_params *params_ptr, int full_argc, char **full_argv
     {"version" , no_argument, 0, 'v'},
     {"verbosity" , no_argument, 0, 'V'},
     {"no-color" , no_argument, 0, 'C'},
-    {"status-refresh-interval", required_argument, 0, 'i'},
+    {"input-file", required_argument, 0, 'i'},
     {"chunk-size" , required_argument, 0, 's'},
     {"last-chunks-first" , required_argument, 0, 'l'},
     {"last-size-first" , required_argument, 0, 'L'},
@@ -243,6 +248,9 @@ static int parse_opts(infidl_params *params_ptr, int full_argc, char **full_argv
 #define SAL_OPT_TIMEOUT_LOW_SPEED_PERIOD  CHAR_MAX+20
 #define SAL_OPT_TIMEOUT_CONNECTION_PERIOD CHAR_MAX+21
 #define SAL_OPT_SHOW_DETAILS             CHAR_MAX+22
+#define SAL_OPT_M3U8                     CHAR_MAX+23
+#define SAL_OPT_INPUT_FILE               CHAR_MAX+24
+#define SAL_OPT_STATUS_REFRESH_INTERVAL  CHAR_MAX+25
     {"mirror-url", required_argument, 0, SAL_OPT_MIRROR_URL},
     {"fatal-if-invalid-mirror", no_argument, 0, SAL_OPT_FATAL_IF_INVALID_MIRROR},
     {"no-http2", no_argument, 0, SAL_OPT_NO_HTTP2},
@@ -265,6 +273,8 @@ static int parse_opts(infidl_params *params_ptr, int full_argc, char **full_argv
     {"timeout-low-speed-period", required_argument, 0, SAL_OPT_TIMEOUT_LOW_SPEED_PERIOD},
     {"timeout-connection-period", required_argument, 0, SAL_OPT_TIMEOUT_CONNECTION_PERIOD},
     {"show-details", no_argument, 0, SAL_OPT_SHOW_DETAILS},
+    {"m3u8", no_argument, 0, SAL_OPT_M3U8},
+    {"status-refresh-interval", required_argument, 0, SAL_OPT_STATUS_REFRESH_INTERVAL},
     {0, 0, 0, 0}
   };
 
@@ -312,7 +322,7 @@ static int parse_opts(infidl_params *params_ptr, int full_argc, char **full_argv
         params_ptr->print_version = true;
         break;
       case 'i':
-        params_ptr->status_refresh_interval = parse_num_d(optarg);
+        params_ptr->input_file = infidl_strdup(optarg);
         break;
       case 's':
         params_ptr->chunk_size = parse_num_z(optarg, 1);
@@ -529,16 +539,29 @@ static int parse_opts(infidl_params *params_ptr, int full_argc, char **full_argv
         params_ptr->show_details = true;
         break;
 
+      case SAL_OPT_M3U8:
+        params_ptr->m3u8_mode = true;
+        break;
+
+      case SAL_OPT_STATUS_REFRESH_INTERVAL:
+        params_ptr->status_refresh_interval = parse_num_d(optarg);
+        break;
+
       default:
         return 1;
         break; /* keep it here in case we change this code in the future */
     }
   }
-  if (full_argc - optind != 1) {
+  if (params_ptr->input_file) {
+    /* --input-file mode: URL is optional */
+    if (full_argc - optind == 1) {
+      params_ptr->start_url = infidl_strdup(full_argv[optind]);
+    }
+  } else if (full_argc - optind != 1) {
     return 1;
-  }
-
+  } else {
     params_ptr->start_url = infidl_strdup(full_argv[optind]);
+  }
 
   return 0;
 }
@@ -607,6 +630,62 @@ int main(int argc,char **argv) {
 
   if (params.print_version) {
     return infidl_version();
+  }
+
+  /* Segment list download mode */
+  if (params.input_file) {
+    segdl_params_s seg_params = {0};
+    seg_params.input_file = params.input_file;
+    seg_params.default_dir = params.root_dir;
+    seg_params.proxy = params.proxy;
+    seg_params.tunnel_proxy = params.tunnel_proxy;
+    seg_params.no_proxy = params.no_proxy;
+    seg_params.user_agent = params.user_agent;
+    seg_params.no_user_agent = params.no_user_agent;
+    seg_params.referer = params.referer;
+    seg_params.custom_headers = params.custom_headers;
+    seg_params.tls_no_verify = params.tls_no_verify;
+    seg_params.forced_ip_protocol = params.forced_ip_protocol;
+    seg_params.connections = params.num_connections;
+    seg_params.show_details = params.show_details;
+    seg_params.inline_cookies = params.inline_cookies;
+    seg_params.cookie_file = params.cookie_file;
+    return segdl_download(&seg_params);
+  }
+
+  /* Auto-detect M3U8 URLs */
+  if (!params.m3u8_mode && params.start_url) {
+    const char *url = params.start_url;
+    /* Check if URL path ends with .m3u8 or has .m3u8? (query params) */
+    const char *m3u8 = strstr(url, ".m3u8");
+    if (m3u8) {
+      char c = m3u8[5];
+      if (c == '\0' || c == '?' || c == '#') {
+        params.m3u8_mode = true;
+      }
+    }
+  }
+
+  if (params.m3u8_mode) {
+    m3u8_params_s m3u8_params = {0};
+    m3u8_params.url = params.start_url;
+    m3u8_params.output_filename = params.filename;
+    m3u8_params.root_dir = params.root_dir;
+    m3u8_params.proxy = params.proxy;
+    m3u8_params.tunnel_proxy = params.tunnel_proxy;
+    m3u8_params.no_proxy = params.no_proxy;
+    m3u8_params.user_agent = params.user_agent;
+    m3u8_params.no_user_agent = params.no_user_agent;
+    m3u8_params.referer = params.referer;
+    m3u8_params.custom_headers = params.custom_headers;
+    m3u8_params.tls_no_verify = params.tls_no_verify;
+    m3u8_params.forced_ip_protocol = params.forced_ip_protocol;
+    m3u8_params.connections = params.num_connections;
+    m3u8_params.show_details = params.show_details;
+    m3u8_params.inline_cookies = params.inline_cookies;
+    m3u8_params.cookie_file = params.cookie_file;
+    m3u8_params.no_color = params.no_color;
+    return m3u8_download(&m3u8_params);
   }
 
   infidl(&params);

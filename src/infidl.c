@@ -63,6 +63,7 @@ static void infidl_free_all(info_s *info_ptr) {
   INFIDL_FREE(params_ptr->user_agent);
   INFIDL_FREE(params_ptr->proxy);
   INFIDL_FREE(params_ptr->tunnel_proxy);
+  INFIDL_FREE(params_ptr->input_file);
 }
 
 void infidl(infidl_params *params_ptr) {

@@ -96,6 +96,8 @@ typedef struct {
   size_t timeout_low_speed;
   size_t timeout_low_speed_period;
   size_t timeout_connection_period;
+  bool m3u8_mode;
+  char *input_file;  /* -i / --input-file for segment list */
 } infidl_params;
 
 /* Static initializer.
